@@ -1,0 +1,3 @@
+[submodule "bloom-filter/oura"]
+	path = bloom-filter/oura
+	url = https://github.com/txpipe/oura.git
