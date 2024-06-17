@@ -1,0 +1,42 @@
+[source]
+type = "N2N"
+peers = ["relays-new.cardano-mainnet.iohk.io:3001"]
+
+[intersect]
+# type = "Tip"
+type = "Point"
+value = [
+    126222277,
+    "16814632dc79d80b9b16815588769543d5300ab9e8546b323a95228a682d6d00",
+]
+
+[[filters]]
+type = "SplitBlock"
+
+[[filters]]
+type = "ParseCbor"
+
+# [[filters]]
+# type = "IntoJson"
+
+# [sink]
+# type = "Stdout"
+
+[sink]
+type = "Rabbitmq"
+url = "amqp://rabbitmq:rabbitmq@localhost:5672"
+exchange = "events.exchange"
+
+# [sink]
+# type = "FileRotate"
+# max_total_files = 1
+# output_format = "JSONL"
+# output_path = "./output/logs.jsonl"
+# max_bytes_per_file = 5_000_000
+# compress_files = true
+
+# [sink.retry_policy]
+# max_retries = 30
+# backoff_unit =  5000
+# backoff_factor = 2
+# max_backoff = 100000

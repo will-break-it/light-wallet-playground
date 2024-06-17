@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Lace Client</title>
+  </head>
+  <body>
+    <h1>Lace Client</h1>
+    <div id="events"></div>
+
+    <script>
+      const ws = new WebSocket("ws://localhost:8080");
+
+      ws.onopen = () => {
+        console.log("WebSocket connection opened");
+      };
+
+      ws.onmessage = (event) => {
+        const message = event.data;
+        const messagesDiv = document.getElementById("events");
+        const messageElement = document.createElement("p");
+        console.log(message);
+        const data = JSON.parse(message.toString());
+        messageElement.textContent = JSON.stringify({ hash: data.hash, inputs: data.inputs, outputs: data.outputs });
+
+        messagesDiv.insertBefore(messageElement, messagesDiv.firstChild);
+        if (messagesDiv.childElementCount > 10) {
+          messagesDiv.removeChild(messagesDiv.lastChild);
+        }
+      };
+
+      ws.onclose = () => {
+        console.log("WebSocket connection closed");
+      };
+    </script>
+  </body>
+</html>
