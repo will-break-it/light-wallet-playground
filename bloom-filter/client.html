@@ -12,6 +12,14 @@
 
       ws.onopen = () => {
         console.log("WebSocket connection opened");
+        ws.send(
+          JSON.stringify({
+            type: "set_filter",
+            address:
+              "addr1qx60p92mpmul46h9mzp6grty5rjkejzv0atdvc6ka64fc7r72xn7hte3evkx34mg0dlulhzc9suyczrfnv9e4m95d22qzl4ssj",
+            credentials: null,
+          })
+        );
       };
 
       ws.onmessage = (event) => {
@@ -20,7 +28,14 @@
         const messageElement = document.createElement("p");
         console.log(message);
         const data = JSON.parse(message.toString());
-        messageElement.textContent = JSON.stringify({ hash: data.hash, inputs: data.inputs, outputs: data.outputs });
+
+        if (data.hash && data.inputs && data.outputs) {
+          messageElement.textContent = JSON.stringify({
+            hash: data.hash,
+            inputs: data.inputs,
+            outputs: data.outputs,
+          });
+        }
 
         messagesDiv.insertBefore(messageElement, messagesDiv.firstChild);
         if (messagesDiv.childElementCount > 10) {
