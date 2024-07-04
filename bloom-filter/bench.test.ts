@@ -6,7 +6,7 @@ type ClientAddress = {
   stake_address: string;
 };
 
-const CLIENT_COUNT = 1800;
+const CLIENT_COUNT = 2000;
 const clients: WebSocket[] = [];
 const addresses: ClientAddress[] = mainnet_addresses.default.slice(
   0,
@@ -22,7 +22,7 @@ for (let i = 0; i < CLIENT_COUNT; i++) {
       addresses.at(i)!.address
     );
     clients.push(client);
-  }, 200);
+  }, 10*i);
 }
 
 export function createClient(
