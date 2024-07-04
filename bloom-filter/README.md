@@ -58,12 +58,46 @@ Ensure you have a client connected by opening the html file, otherwise you won't
 once a client connects.
 
 
-## Metrics
+## Results & Metrics
 
-By default there are some constants defined to observe a specific wallet address that can be changed via the `WALLET_ADDRESS` constants.
-In a production like solution, client would greet after establishing a websocket connection by sharing their address(es) to be observed.
+We have collected test data based on two scenarios. All data was made available in this [spread sheet](https://docs.google.com/spreadsheets/d/1xZKOP9pRSpjLY7SWOPKUbU1015Y8fBqBqWsHNvDvuFY/edit?usp=sharing).
 
-The metrics are logged by wallet address and named according to the set expected false-positive error rate.
+ ### 1. Measure tx filtering via single client connection:<br />
 
-> Important:
-Metric files are overridden when multiple runs with the FPR are done.
+  All measures were done using a test wallet on mainnet with the same stream of blocks:
+
+  - ~4783 blocks
+  - ~50.000 transactions processed server-side
+  - 211MB
+  - with 1 Tx that is actually part of the wallet.
+  
+  #### FPR Comparison
+
+  One main goal was to compare filtering txs by output address vs. credentials which can be seen in the [FPR figure](#fpr-comparison) below.
+
+  ![alt text](./static/fpr-comparison.png)
+  
+  #### BTR Comparison
+
+  A secondary goal was to compare the difference of the bytes transferred to clients using different filter configurations.
+
+  ![alt text](./static/btr-comparison.png)
+
+
+### 2. Measure server capabilities for multiple client connections
+
+In this test scenario, we used:
+  
+  - different number of connected clients
+  - each client had a different wallet, with different UTxO set
+  - each wallet has a different number of transactions
+  - each test run used the same stream of blocks (2500 Txs, ~20MB Data)
+
+We can see how the average duration of overall processing/ filtering txs by the server increase non-linearly while we increased the number of connected clients at a decreasing ratio (number of client increase / avg increase of processing duration).
+
+#### Average duration filtering txs for # of clients
+![alt text](./static/avg-duration-comparison.png)
+
+
+> Note:<br />
+> The tests were made on a Macbook Pro 2020 2 GHz Quad-Core Intel Core i5 but not in parallel!
