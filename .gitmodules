@@ -1,3 +1,7 @@
 [submodule "bloom-filter/oura"]
 	path = bloom-filter/oura
 	url = https://github.com/txpipe/oura.git
+[submodule "credential-indexer/cardano-js-sdk"]
+	path = credential-indexer/cardano-js-sdk
+	url = https://github.com/will-break-it/cardano-js-sdk.git
+	branch = master

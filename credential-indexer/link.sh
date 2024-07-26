@@ -3,11 +3,11 @@
 set -e
 
 # Define the base paths
-CJSSDK_PACKAGE_PATH="$HOME/Workspaces/IO/cardano-js-sdk/packages"
+CJSSDK_PACKAGE_PATH="$(pwd)/cardano-js-sdk/packages"
 NODE_MODULES_PATH="$(pwd)/node_modules/@cardano-sdk"
 
 # Package names to be linked locally
-PACKAGES=("core" "ogmios" "projection" "projection-typeorm" "util-rxjs")
+PACKAGES=("core" "cardano-services" "ogmios" "projection" "projection-typeorm" "util-rxjs")
 
 create_symlink() {
     local package=$1

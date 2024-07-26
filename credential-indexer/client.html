@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Lace Client</title>
+  </head>
+  <body>
+    <h1>Lace Client</h1>
+    <div id="events"></div>
+
+    <script>
+      const ws = new WebSocket("ws://localhost:8080");
+      const credentials = [
+        "0542ac8ddc40e471eb5dde2103e92780f705e67d155d80e477c0cd24",
+        "ab0619f9756bfff287005ad2c637068b6101b6fc665deaca365530e7",
+      ];
+
+      ws.onopen = () => {
+        console.log("WebSocket connection opened");
+      };
+
+      ws.onmessage = (event) => {
+        const messagesDiv = document.getElementById("events");
+        const message = JSON.parse(event.data);
+        if (!message) return;
+        const keys = Object.keys(message);
+        if (keys.length <= 0) return;
+
+        for (const key of keys) {
+          switch (key) {
+            case "welcome":
+              ws.send(JSON.stringify({ type: "subscribe", credentials }));
+              break;
+            case "transactions":
+              for (const [idx, tx] of message[key].entries()) {
+                const group = document.createElement("div");
+                const txIdxEl = document.createElement("p");
+                txIdxEl.textContent = `[Tx ${idx + 1}]`;
+                group.appendChild(txIdxEl);
+                const txEl = document.createElement("p");
+                txEl.textContent = `ID: ${tx.txId}`;
+                group.appendChild(txEl);
+                const txCborEl = document.createElement("p");
+                txCborEl.textContent = `CBOR: ${tx.cbor}`;
+                group.appendChild(txCborEl);
+
+                messagesDiv.appendChild(group);
+              }
+              break;
+            default:
+              console.group(`Unhandled key: ${key}`);
+              console.log(message[key]);
+              console.groupEnd();
+          }
+        }
+      };
+
+      ws.onclose = () => {
+        console.log("WebSocket connection closed");
+      };
+    </script>
+  </body>
+</html>
