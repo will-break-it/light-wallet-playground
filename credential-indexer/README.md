@@ -72,3 +72,7 @@ OGMIOS_PORT=1339
 ```
 
 Try again.
+
+### Type errors
+
+If you're adding dependencies, you'll have to re-link the SDK.
