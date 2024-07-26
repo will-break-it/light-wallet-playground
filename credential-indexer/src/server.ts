@@ -134,7 +134,7 @@ class TransactionIndexerByCredentialsService extends util.TypeormService {
     }
   }
 
-  async queryBy(credentials: string[]): Promise<TransactionEntity[]> {
+  async queryTxsBy(credentials: string[]): Promise<TransactionEntity[]> {
     return service.withDataSource((ds) =>
       ds.manager
         .getRepository(TransactionEntity)
@@ -166,7 +166,7 @@ wss.on("connection", (ws) => {
       switch (message.type) {
         case "subscribe":
           const credentials = (message as Subscribe).credentials;
-          const transactions = await service.queryBy(credentials);
+          const transactions = await service.queryTxsBy(credentials);
           ws.send(JSON.stringify({ transactions }));
           service.register(credentials, ws);
           break;
