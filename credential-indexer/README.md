@@ -28,6 +28,51 @@ Make sure docker daemon is running, because this will start ogmios, cardano-node
 yarn connect
 ```
 
+#### 3.1 Setup Postgres notifications
+
+In order to receive notifications from postgres, you have to run two sql scripts to get notified for new inserts of blocks.
+You can either use pgAdmin or the terminal from the postgres docker container if you have [`psql`](https://www.timescale.com/blog/how-to-install-psql-on-mac-ubuntu-debian-windows/) installed.
+
+##### pgAdmin
+
+Open pgAdmin and open the query tool, then:
+
+- copy & paste the [new_block function](./sql/notify_new_block.function.sql) and execute the SQL
+
+```sql
+  CREATE OR REPLACE FUNCTION notify_new_block()
+  RETURNS TRIGGER AS $$
+  DECLARE
+    payload TEXT;
+  BEGIN
+    payload := row_to_json(NEW);
+    PERFORM pg_notify('new_block', payload);
+    RETURN NEW;
+  END;
+  $$
+
+  LANGUAGE plpgsql;
+```
+
+- copy & paste the [new_block trigger](./sql/notify_new_block.trigger.sql) and execute
+
+```sql
+  CREATE TRIGGER notify_new_block_trigger
+  AFTER INSERT ON block
+  FOR EACH ROW
+  EXECUTE PROCEDURE notify_new_block();
+```
+
+##### Docker Postgres Terminal
+
+Open docker and find the postgres container, there should be an option to `Open in Terminal`, then connect by inserting:
+
+```bash
+psql -U postgres -d projection
+```
+
+After that you should be in the psql cli terminal and you can copy and paste the same sql scripts reference above.
+
 ### 4. Start projection
 
 In a separate terminal start the projection via:
@@ -63,6 +108,7 @@ After running the projection service for a bit, you should a couple transactions
 ### Invalid port for ogmios
 
 Error:
+
 > `* error decoding 'Ports': Invalid hostPort: -1339}`
 
 If you're seeing the above error, open the [`.env.preprod`](./cardano-js-sdk/packages/cardano-services/environments/.env.preprod) file and update the `OGMIOS_PORT`:
