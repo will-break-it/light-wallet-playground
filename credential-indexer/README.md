@@ -57,3 +57,18 @@ You should now be able to open your browser at:
 [https://localhost:8080/client.html](https://localhost:8080/client.html)
 
 After running the projection service for a bit, you should a couple transactions based on the hardcoded credentials in the client.html file.
+
+## Potential Problem Hints
+
+### Invalid port for ogmios
+
+Error:
+> `* error decoding 'Ports': Invalid hostPort: -1339}`
+
+If you're seeing the above error, open the [`.env.preprod`](./cardano-js-sdk/packages/cardano-services/environments/.env.preprod) file and update the `OGMIOS_PORT`:
+
+```env
+OGMIOS_PORT=1339
+```
+
+Try again.
