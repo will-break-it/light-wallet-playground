@@ -34,7 +34,7 @@
               for (const [idx, tx] of message[key].entries()) {
                 const group = document.createElement("div");
                 const txIdxEl = document.createElement("p");
-                txIdxEl.textContent = `[Tx ${idx + 1}]`;
+                txIdxEl.textContent = `[Tx ${messagesDiv.children.length}]`;
                 group.appendChild(txIdxEl);
                 const txEl = document.createElement("p");
                 txEl.textContent = `ID: ${tx.txId}`;
