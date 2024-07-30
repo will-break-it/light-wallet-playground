@@ -8,6 +8,7 @@
     "build:sdk": "yarn --cwd ./cardano-js-sdk build && yarn --cwd ./cardano-js-sdk/packages/cardano-services-client build",
     "connect": "yarn --cwd ./cardano-js-sdk/packages/cardano-services preprod:up cardano-node ogmios postgres",
     "project": "./start-projection.sh",
+    "test:bench": "ts-node ./src/bench.test.ts",
     "link:sdk": "./link.sh",
     "start": "node dist/server.js"
   },

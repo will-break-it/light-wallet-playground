@@ -122,3 +122,12 @@ Try again.
 ### Type errors
 
 If you're adding dependencies, you'll have to re-link the SDK.
+
+## Testing (Benchmark)
+
+You will need to run the `connect` and optionally the `projection` command, unless you don't want the most recent data.
+The test isn't current testing as there a continously growing number of tx counts.
+
+```bash
+yarn test:bench
+```

@@ -4,13 +4,21 @@ import {
   CredentialEntity,
   TransactionEntity,
 } from "@cardano-sdk/projection-typeorm";
-import { of } from "rxjs";
-import { WebSocket, WebSocketServer } from "ws";
+import { Client as Postgres, Notification } from "pg";
+import {
+  concat,
+  from,
+  of,
+  retry,
+  BehaviorSubject,
+  SubscriptionLike,
+} from "rxjs";
+import { RawData, WebSocket, WebSocketServer } from "ws";
 import { ClientMessage } from "./messages/clientMessage";
 import { Subscribe } from "./messages/subscribe";
 import { CARDANO_PREPROD, Welcome } from "./messages/welcome";
-import { Client as Postgres } from "pg";
-import { gunzipSync } from "zlib";
+import { Point, PointOrOrigin } from "./types";
+import { fromCamel } from "postgres";
 
 const wss = new WebSocketServer({ port: 8080 });
 const connectionConfig = {
@@ -23,7 +31,10 @@ const connectionConfig = {
 
 class TransactionIndexerByCredentialsService extends util.TypeormService {
   #db: Postgres;
+  tip: PointOrOrigin = "origin";
   #clientsByCredential: Record<string, WebSocket> = {};
+
+  #subscriptions = new Array<SubscriptionLike>();
 
   constructor() {
     super("TransactionIndexerByCredentialsService", {
@@ -39,75 +50,35 @@ class TransactionIndexerByCredentialsService extends util.TypeormService {
 
   async initializeImpl(): Promise<void> {
     await super.initializeImpl();
-    this.#db.connect((err) => {
-      if (err) {
-        this.logger.error("Error connecting to PostgreSQL:", err);
-      } else {
-        this.logger.log("Connected to PostgreSQL");
-      }
-    });
+
+    this.#subscriptions.push(
+      concat(from(this.#db.connect()), from(this.#db.query("LISTEN new_block")))
+        .pipe(retry(3))
+        .subscribe((_) => {
+          this.logger.log("Connected to PostgreSQL");
+        })
+    );
   }
 
   async startImpl(): Promise<void> {
     await super.startImpl();
-    this.#db.query("LISTEN new_block", (err) => {
-      if (err) {
-        this.logger.error("Error listening for notifications:", err);
-      } else {
-        this.logger.log(
-          'Listening for notifications on channel "new_transaction"'
-        );
-      }
-    });
 
-    this.#db.on("notification", async (msg) => {
-      if (!msg.payload) return;
-      const block: BlockEntity = JSON.parse(msg.payload);
-      if (!block.slot) {
-        console.error(`No block slot`, block);
-        return;
-      }
+    this.#db.on("notification", this.#postgresNotificationHandler);
 
-      await this.withDataSource(async (ds) => {
-        const transactionRepository =
-          ds.manager.getRepository(TransactionEntity);
-        const transactions = await transactionRepository
-          .createQueryBuilder("transaction")
-          .leftJoinAndSelect("transaction.credentials", "credential")
-          .where("transaction.block_id = :blockId", { blockId: block.slot })
-          .getMany();
-
-        const publishable = transactions.reduce((map, tx) => {
-          for (const credential of tx.credentials ?? []) {
-            const client =
-              this.#clientsByCredential[credential.credentialHash!];
-            if (client) {
-              // found client subscribed with this credential
-              // create list of unqiue txs since a client may match multiple
-              const txs = [...(map.get(client) ?? []), tx].reduce((txs, tx) => {
-                if (
-                  txs.filter((t) => t.txId === tx.txId && t.cbor === tx.cbor)
-                    .length === 0
-                ) {
-                  txs.push(tx);
-                }
-                return txs;
-              }, new Array<TransactionEntity>());
-              map.set(client, txs);
-            }
-          }
-          return map;
-        }, new Map<WebSocket, TransactionEntity[]>());
-
-        publishable.forEach((transactions, client) => {
-          client.send(JSON.stringify({ transactions, point: { ...block } }));
-        });
+    wss.on("connection", (ws) => {
+      this.#sendWelcome(ws);
+      ws.on("message", this.#clientMessageHandler(ws));
+      ws.on("error", (err) => {
+        this.logger.error(err);
+        this.#unregister(ws);
       });
+      ws.on("close", () => this.#unregister(ws));
     });
   }
 
   async shutdownImpl(): Promise<void> {
     try {
+      this.#subscriptions.forEach((sub) => sub.unsubscribe());
       await this.#db.query("UNLISTEN *");
       this.logger.log("Stopped listening for notifications");
       await this.#db.end();
@@ -120,13 +91,85 @@ class TransactionIndexerByCredentialsService extends util.TypeormService {
     this.logger.log("Closed client connection");
   }
 
-  register(credentials: string[], client: WebSocket) {
+  #sendWelcome(client: WebSocket) {
+    this.logger.log("Client connected");
+    const welcome: Welcome = { blockchains: [CARDANO_PREPROD] };
+    client.send(JSON.stringify({ welcome }));
+  }
+
+  #clientMessageHandler = (client: WebSocket) => async (data: RawData) => {
+    try {
+      const message: ClientMessage = JSON.parse(data.toString());
+      if (!message) throw Error("Invalid message");
+      switch (message.type) {
+        case "subscribe":
+          const credentials = (message as Subscribe).credentials;
+          this.#register(credentials, client);
+          const transactions = await service.queryTxsBy(credentials);
+          client.send(
+            JSON.stringify({
+              transactions,
+              point: typeof this.tip === "string" ? this.tip : { ...this.tip },
+            })
+          );
+          break;
+        default:
+          throw new Error(`Unsupported message type: ${message.type}`);
+      }
+    } catch (error) {
+      console.error(`Error:`, data.toString("utf-8"));
+      console.error(error);
+      client.send(JSON.stringify({ error }));
+    }
+  };
+
+  async #postgresNotificationHandler({ payload }: Notification) {
+    if (!payload) return;
+    const block: BlockEntity = JSON.parse(payload);
+
+    await this.withDataSource(async (ds) => {
+      const transactionRepository = ds.manager.getRepository(TransactionEntity);
+      const transactions = await transactionRepository
+        .createQueryBuilder("transaction")
+        .leftJoinAndSelect("transaction.credentials", "credential")
+        .where("transaction.block_id = :blockId", { blockId: block.slot })
+        .getMany();
+
+      const publishable = transactions.reduce((map, tx) => {
+        for (const credential of tx.credentials ?? []) {
+          const client = this.#clientsByCredential[credential.credentialHash!];
+          if (client) {
+            // found client subscribed with this credential
+            // create list of unqiue txs since a client may match multiple
+            const txs = [...(map.get(client) ?? []), tx].reduce((txs, tx) => {
+              if (
+                txs.filter((t) => t.txId === tx.txId && t.cbor === tx.cbor)
+                  .length === 0
+              ) {
+                txs.push(tx);
+              }
+              return txs;
+            }, new Array<TransactionEntity>());
+            map.set(client, txs);
+          }
+        }
+        return map;
+      }, new Map<WebSocket, TransactionEntity[]>());
+
+      publishable.forEach((transactions, client) => {
+        client.send(JSON.stringify({ transactions, point: { ...block } }));
+      });
+    });
+  }
+
+  #register(credentials: string[], client: WebSocket) {
     for (const credential of credentials) {
       this.#clientsByCredential[credential] = client;
     }
   }
 
-  unregister(client: WebSocket) {
+  #unregister(client: WebSocket) {
+    this.logger.log("Client disconnected");
     for (const [credential, c] of Object.entries(this.#clientsByCredential)) {
       if (client === c) {
         delete this.#clientsByCredential[credential];
@@ -153,37 +196,5 @@ class TransactionIndexerByCredentialsService extends util.TypeormService {
 
 const service = new TransactionIndexerByCredentialsService();
 service.initialize().then(() => service.start());
-
-const welcome: Welcome = { blockchains: [CARDANO_PREPROD] };
-wss.on("connection", (ws) => {
-  console.log("Client connected");
-  ws.send(JSON.stringify({ welcome }));
-
-  ws.on("message", async (event) => {
-    try {
-      const message: ClientMessage = JSON.parse(event.toString());
-      if (!message) throw Error("Invalid message");
-      switch (message.type) {
-        case "subscribe":
-          const credentials = (message as Subscribe).credentials;
-          const transactions = await service.queryTxsBy(credentials);
-          ws.send(JSON.stringify({ transactions }));
-          service.register(credentials, ws);
-          break;
-        default:
-          throw new Error(`Unsupported message type: ${message.type}`);
-      }
-    } catch (error) {
-      console.error(`Error:`, event.toString("utf-8"));
-      console.error(error);
-      ws.send(JSON.stringify({ error }));
-    }
-  });
-
-  ws.on("close", () => {
-    service.unregister(ws);
-    console.log("Client disconnected");
-  });
-});
 
 console.log("WebSocket server is running on ws://localhost:8080");

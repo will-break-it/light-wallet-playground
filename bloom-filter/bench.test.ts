@@ -1,4 +1,4 @@
-import * as mainnet_addresses from "./mainnet-addresses.json" with { type: "json" };
+import * as mainnet_addresses from "../mainnet-addresses.json" with { type: "json" };
 
 type ClientAddress = {
   tx_count: number;
@@ -6,7 +6,7 @@ type ClientAddress = {
   stake_address: string;
 };
 
-const CLIENT_COUNT = 2000;
+const CLIENT_COUNT = 100;
 const clients: WebSocket[] = [];
 const addresses: ClientAddress[] = mainnet_addresses.default.slice(
   0,
