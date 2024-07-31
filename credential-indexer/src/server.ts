@@ -125,6 +125,7 @@ class TransactionIndexerByCredentialsService extends util.TypeormService {
 
   async #postgresNotificationHandler({ payload }: Notification) {
     if (!payload) return;
+    const time = Date.now();
     const block: BlockEntity = JSON.parse(payload);
 
     await this.withDataSource(async (ds) => {
@@ -157,7 +158,7 @@ class TransactionIndexerByCredentialsService extends util.TypeormService {
       }, new Map<WebSocket, TransactionEntity[]>());
 
       publishable.forEach((transactions, client) => {
-        client.send(JSON.stringify({ transactions, point: { ...block } }));
+        client.send(JSON.stringify({ transactions, point: { ...block }, time }));
       });
     });
   }
